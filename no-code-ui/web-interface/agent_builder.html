@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARCHON Agent Builder</title>
+    
+    <!-- TailwindCSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="../css/styles.css">
+    
+    <!-- Alpine.js for reactive components -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    
+    <!-- CodeMirror for code preview -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/python/python.min.js"></script>
+    
+    <style>
+        .tool-card:hover {
+            transform: translateY(-4px);
+            transition: transform 0.2s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- ARCHON Agent Builder Interface -->
+    <div x-data="agentBuilder()" x-init="init()">
+        <!-- Top Navigation -->
+        <nav class="bg-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-xl font-bold text-blue-600">ARCHON Agent Builder</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="saveAgent()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Save Agent
+                        </button>
+                        <button @click="deployAgent()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                            Deploy Agent
+                        </button>
+                        <button @click="exportCode()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+                            Export Code
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Left Panel - Agent Configuration -->
+                <div class="lg:col-span-1">
+                    <!-- Agent Basic Info -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-6">
+                        <h2 class="text-lg font-semibold mb-4">Agent Configuration</h2>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Agent Name</label>
+                                <input type="text" x-model="agentName" 
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    placeholder="My AI Agent">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Agent Type</label>
+                                <select x-model="agentType" 
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="basic">Basic Agent</option>
+                                    <option value="api">API Integration Agent</option>
+                                    <option value="data">Data Processing Agent</option>
+                                    <option value="automation">Automation Agent</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">LLM Model</label>
+                                <select x-model="model" 
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="gpt-4">GPT-4</option>
+                                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                    <option value="claude-3-haiku">Claude 3 Haiku</option>
+                                    <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                                    <option value="claude-3-opus">Claude 3 Opus</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">System Prompt</label>
+                                <textarea x-model="systemPrompt" rows="4"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    placeholder="You are a helpful AI assistant..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- MCP Server Selection -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h2 class="text-lg font-semibold mb-4">MCP Server Integration</h2>
+                        
+                        <div class="space-y-4">
+                            <template x-for="server in availableServers" :key="server.name">
+                                <div class="flex items-center justify-between p-3 border rounded-lg"
+                                     :class="selectedServers.includes(server.name) ? 'border-blue-500 bg-blue-50' : 'border-gray-300'">
+                                    <div>
+                                        <h3 class="font-medium" x-text="server.name"></h3>
+                                        <p class="text-sm text-gray-500" x-text="server.description"></p>
+                                    </div>
+                                    <button @click="toggleServer(server.name)"
+                                        class="px-4 py-2 rounded"
+                                        :class="selectedServers.includes(server.name) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'">
+                                        <span x-text="selectedServers.includes(server.name) ? 'Remove' : 'Add'"></span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Middle Panel - Tool Selection -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h2 class="text-lg font-semibold mb-4">Tool Library</h2>
+                        
+                        <!-- Tool Categories -->
+                        <div class="flex space-x-2 mb-4">
+                            <template x-for="category in toolCategories" :key="category">
+                                <button @click="selectedCategory = category"
+                                    class="px-4 py-2 rounded-full text-sm"
+                                    :class="selectedCategory === category ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'">
+                                    <span x-text="category"></span>
+                                </button>
+                            </template>
+                        </div>
+                        
+                        <!-- Tool Grid -->
+                        <div class="grid grid-cols-1 gap-4">
+                            <template x-for="tool in filteredTools" :key="tool.id">
+                                <div class="tool-card p-4 border rounded-lg cursor-pointer"
+                                     :class="selectedTools.includes(tool.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-300'"
+                                     @click="toggleTool(tool.id)">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h3 class="font-medium" x-text="tool.name"></h3>
+                                            <p class="text-sm text-gray-500" x-text="tool.description"></p>
+                                        </div>
+                                        <div class="w-6 h-6 rounded-full border-2"
+                                             :class="selectedTools.includes(tool.id) ? 'border-blue-600 bg-blue-600' : 'border-gray-300'">
+                                            <svg x-show="selectedTools.includes(tool.id)" class="w-full h-full text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Panel - Code Preview -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h2 class="text-lg font-semibold mb-4">Code Preview</h2>
+                        
+                        <div class="mb-4">
+                            <div class="border-b border-gray-200">
+                                <nav class="-mb-px flex space-x-8">
+                                    <button @click="activeTab = 'agent'"
+                                        class="py-2 px-1 border-b-2 font-medium text-sm"
+                                        :class="activeTab === 'agent' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'">
+                                        Agent Code
+                                    </button>
+                                    <button @click="activeTab = 'flowise'"
+                                        class="py-2 px-1 border-b-2 font-medium text-sm"
+                                        :class="activeTab === 'flowise' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'">
+                                        Flowise Flow
+                                    </button>
+                                    <button @click="activeTab = 'n8n'"
+                                        class="py-2 px-1 border-b-2 font-medium text-sm"
+                                        :class="activeTab === 'n8n' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'">
+                                        n8n Workflow
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+                        
+                        <div class="relative h-96 border rounded-lg overflow-hidden">
+                            <textarea id="codeEditor" class="hidden"></textarea>
+                        </div>
+                        
+                        <div class="mt-4 flex space-x-4">
+                            <button @click="copyCode()" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                Copy Code
+                            </button>
+                            <button @click="downloadCode()" class="flex-1 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Agent Preview -->
+                    <div class="bg-white rounded-lg shadow p-6 mt-6">
+                        <h2 class="text-lg font-semibold mb-4">Agent Preview</h2>
+                        
+                        <div class="space-y-4">
+                            <div class="p-4 bg-gray-50 rounded-lg">
+                                <h3 class="font-medium mb-2">Agent Summary</h3>
+                                <p class="text-sm text-gray-600">Name: <span x-text="agentName || 'Unnamed Agent'"></span></p>
+                                <p class="text-sm text-gray-600">Type: <span x-text="agentType"></span></p>
+                                <p class="text-sm text-gray-600">Model: <span x-text="model"></span></p>
+                                <p class="text-sm text-gray-600">Tools: <span x-text="selectedTools.length"></span></p>
+                                <p class="text-sm text-gray-600">MCP Servers: <span x-text="selectedServers.length"></span></p>
+                            </div>
+                            
+                            <button @click="testAgent()" class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                                Test Agent
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include JavaScript -->
+    <script src="../js/agent_builder.js"></script>
+    <script>
+        // Initialize CodeMirror when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            window.codeEditor = CodeMirror.fromTextArea(document.getElementById("codeEditor"), {
+                mode: "python",
+                theme: "default",
+                lineNumbers: true,
+                autoCloseBrackets: true,
+                matchBrackets: true,
+                indentUnit: 4,
+                tabSize: 4,
+                indentWithTabs: false,
+                lineWrapping: true,
+                readOnly: false
+            });
+        });
+    </script>
+</body>
+</html>
