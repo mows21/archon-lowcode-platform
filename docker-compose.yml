@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  # Frontend Service - React UI
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_FLOWISE_URL=http://localhost:3000
+      - REACT_APP_N8N_URL=http://localhost:5678
+    depends_on:
+      - backend
+      - flowise
+      - n8n
+    networks:
+      - archon-network
+
+  # Backend Service - FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@supabase:5432/archon
+      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FLOWISE_API_KEY=${FLOWISE_API_KEY}
+      - N8N_API_KEY=${N8N_API_KEY}
+    depends_on:
+      - supabase
+      - qdrant
+      - redis
+    networks:
+      - archon-network
+
+  # Flowise - Visual Flow Builder
+  flowise:
+    image: flowiseai/flowise:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - FLOWISE_USERNAME=admin
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}
+      - DATABASE_PATH=/root/.flowise
+      - APIKEY_PATH=/root/.flowise
+      - LOG_LEVEL=info
+    volumes:
+      - flowise-data:/root/.flowise
+    networks:
+      - archon-network
+
+  # n8n - Workflow Automation
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - GENERIC_TIMEZONE=UTC
+      - TZ=UTC
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - archon-network
+
+  # Supabase - PostgreSQL Database
+  supabase:
+    image: supabase/postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=archon
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - supabase-data:/var/lib/postgresql/data
+    networks:
+      - archon-network
+
+  # Qdrant - Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - archon-network
+
+  # Redis - Caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - archon-network
+
+  # MCP Servers
+  mcp-cline:
+    build:
+      context: ./mcp-servers/cline
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - SQLITE_DB=/data/cline.db
+      - MCP_PROTOCOL=stdio
+    volumes:
+      - cline-data:/data
+    networks:
+      - archon-network
+
+  mcp-roo:
+    build:
+      context: ./mcp-servers/roo
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8080"
+    environment:
+      - MCP_PROTOCOL=stdio
+      - BROWSER_URL=http://localhost:9222
+    networks:
+      - archon-network
+
+  mcp-claude-desktop:
+    build:
+      context: ./mcp-servers/claude-desktop
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8080"
+    environment:
+      - MCP_PROTOCOL=stdio
+      - DESKTOP_MODE=true
+    networks:
+      - archon-network
+
+  # Monitoring Services
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - archon-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - archon-network
+
+  # LangFuse - LLM Observability
+  langfuse:
+    image: langfuse/langfuse:latest
+    ports:
+      - "3002:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@supabase:5432/langfuse
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=http://localhost:3002
+    depends_on:
+      - supabase
+    networks:
+      - archon-network
+
+networks:
+  archon-network:
+    driver: bridge
+
+volumes:
+  flowise-data:
+  n8n-data:
+  supabase-data:
+  qdrant-data:
+  redis-data:
+  cline-data:
+  prometheus-data:
+  grafana-data:
